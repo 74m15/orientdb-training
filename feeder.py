@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
-from sys import stdout
+from sys import stdout, stderr
 
 import pyorient
 import json
@@ -65,6 +65,7 @@ def main(*args):
         with open(opts["arg.docfile"],"rt") as f:
             count = 0
             done = 0
+            error = 0
             
             while True:
                 line = f.readline()
@@ -73,15 +74,28 @@ def main(*args):
                     break
                 
                 if (count % ratio_quot == ratio_mod):
-                    raw = json.loads(line)
-                    record = { k : keep_doc[k](raw[k]) for k in raw.keys() if k in keep_doc.keys() }
-                    record["KEY"] = "{GJAHR}-{BELNR}".format(**record)
+                    tx = client.tx_commit()
+                    tx.begin()
                     
-                    data = { "@VDocument" : record }
-                    
-                    client.record_create(-1, data)
-                    
-                    done += 1
+                    try:
+                        raw = json.loads(line)
+                        record = { k : keep_doc[k](raw[k]) for k in raw.keys() if k in keep_doc.keys() }
+                        record["KEY"] = "{GJAHR}-{BELNR}".format(**record)
+                        
+                        data = { "@VDocument" : record }
+                        
+                        client.record_create(-1, data)
+
+                        tx.commit()
+                        
+                        done += 1
+                        
+                    except:
+                        tx.rollback()
+                        
+                        print(line, file=stderr)
+                        
+                        error += 1
                 
                 count += 1
                 
@@ -95,6 +109,7 @@ def main(*args):
                     
             print("\n\nRercords read: {0}".format(count))
             print("Rercords processed: {0}".format(done))
+            print("Rercords wrong: {0}".format(error))
             
         print("Finished processing document (BKPF) file ({0})".format(datetime.now()))
     
@@ -104,10 +119,20 @@ def main(*args):
         with open(opts["arg.posfile"],"rt") as f:
             count = 0
             done = 0
+
             
-            @lru_cache(maxsize=1000000)
-            def getRid(key):
+            @lru_cache(maxsize=2000000)
+            def getDocumentRid(key):
                 return client.query("select from VDocument where KEY = '{0}'".format(key))[0]._rid
+
+                
+            def doCommand(cmd):
+                try:
+                    client.command(cmd)
+                except Exception as ex:
+                    print(cmd, file=stderr)
+                    print(ex)
+                    
                 
             while True:
                 line = f.readline()
@@ -123,15 +148,15 @@ def main(*args):
                     data = { "@VPosition" : record }
                     
                     pos_rid = client.record_create(-1, data)._rid
-                    doc_rid = getRid("{GJAHR}-{BELNR}".format(**raw))
+                    doc_rid = getDocumentRid("{GJAHR}-{BELNR}".format(**raw))
+
+                    doCommand("create EDGE EParent from {0} to {1}".format(pos_rid, doc_rid))
+                    doCommand("create EDGE EChildren from {0} to {1}".format(doc_rid, pos_rid))
                     
-                    client.command("create EDGE EParent from {0} to {1}".format(pos_rid, doc_rid))
-                    client.command("create EDGE EChildren from {0} to {1}".format(doc_rid, pos_rid))
-    
                     if (raw["AUGGJ"] != "0000"):
-                        clear_rid = getRid("{AUGGJ}-{AUGBL}".format(**raw))
+                        clear_rid = getDocumentRid("{AUGGJ}-{AUGBL}".format(**raw))
                         
-                        client.command("create EDGE EClearing from {0} to {1}".format(pos_rid, clear_rid))
+                        doCommand("create EDGE EClearing from {0} to {1}".format(pos_rid, clear_rid))
                     
                     done += 1
                 
@@ -145,7 +170,7 @@ def main(*args):
                     print(" {0}".format(count))
                     stdout.flush()
                     
-            print("\n", getRid.cache_info())
+            print("\n", getDocumentRid.cache_info())
             
             print("\n\nRercords read: {0}".format(count))
             print("Rercords processed: {0}".format(done))
