@@ -131,7 +131,7 @@ def main(*args):
                     client.command(cmd)
                 except Exception as ex:
                     print(cmd, file=stderr)
-                    print(ex)
+                    stderr.flush()
                     
                 
             while True:
