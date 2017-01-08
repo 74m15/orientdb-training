@@ -27,7 +27,7 @@ def main(*args):
     parser.add_argument("-m",   "--mod", help="Remainder of enumeration", type=int, default=0, dest="arg.ratio.mod")
     parser.add_argument("-q",   "--quot", help="Quotient of enumeration", type=int, default=1, dest="arg.ratio.quot")
     parser.add_argument("-f",   "--first", help="First record to process", type=int, default=0, dest="arg.page.first")
-    parser.add_argument("-l",   "--lenght", help="Number of records to process", type=int, default=(1 << (maxsize - 1)), dest="arg.page.length")
+    parser.add_argument("-l",   "--lenght", help="Number of records to process", type=int, default=maxsize, dest="arg.page.length")
             
     opts = vars(parser.parse_args())
 
