@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 from decimal import Decimal
 from functools import lru_cache
-from sys import stdout, stderr
+from sys import stdout, stderr, maxsize
 
 import pyorient
 import json
@@ -26,9 +26,14 @@ def main(*args):
     parser.add_argument("-pos", "--position", help="Position (BSEG) filename", type=str, dest="arg.posfile")
     parser.add_argument("-m",   "--mod", help="Remainder of enumeration", type=int, default=0, dest="arg.ratio.mod")
     parser.add_argument("-q",   "--quot", help="Quotient of enumeration", type=int, default=1, dest="arg.ratio.quot")
-        
+    parser.add_argument("-f",   "--first", help="First record to process", type=int, default=0, dest="arg.page.first")
+    parser.add_argument("-l",   "--lenght", help="Number of records to process", type=int, default=(1 << (maxsize - 1)), dest="arg.page.length")
+            
     opts = vars(parser.parse_args())
 
+    print("Program configuration:")
+    print(opts)
+    
     print("Opening '{0}' database...".format(opts["arg.database"]))
     client = pyorient.OrientDB(opts["arg.host"], opts["arg.port"])
     client.db_open(opts["arg.database"], opts["arg.user"], opts["arg.password"])
@@ -58,6 +63,8 @@ def main(*args):
 
     ratio_mod = opts["arg.ratio.mod"]
     ratio_quot = opts["arg.ratio.quot"]
+    page_first = opts["arg.page.first"]
+    page_length = opts["arg.page.length"]
     
     if (opts["arg.docfile"] is not None):
         print("Processing document (BKPF) file... ({0})".format(datetime.now()))
@@ -65,7 +72,6 @@ def main(*args):
         with open(opts["arg.docfile"],"rt") as f:
             count = 0
             done = 0
-            error = 0
             
             while True:
                 line = f.readline()
@@ -73,29 +79,19 @@ def main(*args):
                 if (line is None or len(line) == 0):
                     break
                 
+                if (count < page_first):
+                    continue
+                
                 if (count % ratio_quot == ratio_mod):
-                    tx = client.tx_commit()
-                    tx.begin()
+                    raw = json.loads(line)
+                    record = { k : keep_doc[k](raw[k]) for k in raw.keys() if k in keep_doc.keys() }
+                    record["KEY"] = "{GJAHR}-{BELNR}".format(**record)
                     
-                    try:
-                        raw = json.loads(line)
-                        record = { k : keep_doc[k](raw[k]) for k in raw.keys() if k in keep_doc.keys() }
-                        record["KEY"] = "{GJAHR}-{BELNR}".format(**record)
-                        
-                        data = { "@VDocument" : record }
-                        
-                        client.record_create(-1, data)
+                    data = { "@VDocument" : record }
+                    
+                    client.record_create(-1, data)
 
-                        tx.commit()
-                        
-                        done += 1
-                        
-                    except:
-                        tx.rollback()
-                        
-                        print(line, file=stderr)
-                        
-                        error += 1
+                    done += 1
                 
                 count += 1
                 
@@ -107,9 +103,11 @@ def main(*args):
                     print(" {0}".format(count))
                     stdout.flush()
                     
+                if (count - page_first == page_length):
+                    break
+                    
             print("\n\nRercords read: {0}".format(count))
             print("Rercords processed: {0}".format(done))
-            print("Rercords wrong: {0}".format(error))
             
         print("Finished processing document (BKPF) file ({0})".format(datetime.now()))
     
