@@ -79,10 +79,7 @@ def main(*args):
                 if (line is None or len(line) == 0):
                     break
                 
-                if (count < page_first):
-                    continue
-                
-                if (count % ratio_quot == ratio_mod):
+                if (count >= page_first and count % ratio_quot == ratio_mod):
                     raw = json.loads(line)
                     record = { k : keep_doc[k](raw[k]) for k in raw.keys() if k in keep_doc.keys() }
                     record["KEY"] = "{GJAHR}-{BELNR}".format(**record)
@@ -138,10 +135,7 @@ def main(*args):
                 if (line is None or len(line) == 0):
                     break
 
-                if (count < page_first):
-                    continue
-                
-                if (count % ratio_quot == ratio_mod):
+                if (count >= page_first and count % ratio_quot == ratio_mod):
                     raw = json.loads(line)
                     record = { k : keep_pos[k](raw[k]) for k in raw.keys() if k in keep_pos.keys() }
                     record["KEY"] = "{GJAHR}-{BELNR}-{BUZEI}".format(**raw)
