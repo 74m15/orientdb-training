@@ -137,6 +137,9 @@ def main(*args):
                 
                 if (line is None or len(line) == 0):
                     break
+
+                if (count < page_first):
+                    continue
                 
                 if (count % ratio_quot == ratio_mod):
                     raw = json.loads(line)
@@ -168,6 +171,9 @@ def main(*args):
                     print(" {0}".format(count))
                     stdout.flush()
                     
+                if (count - page_first == page_length):
+                    break
+
             print("\n", getDocumentRid.cache_info())
             
             print("\n\nRercords read: {0}".format(count))
