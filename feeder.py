@@ -39,7 +39,7 @@ def main(*args):
     client.db_open(opts["arg.database"], opts["arg.user"], opts["arg.password"])
 
     print("Testing database...")
-    client.command("select count(*) from VDocument")
+    client.command("declare intent massiveinsert")
     
     fix_identity = lambda x: x
     fix_date = lambda x: x[0:4] + "-" + x[4:6] + "-" + x[6:]
@@ -176,6 +176,7 @@ def main(*args):
         print("Finished processing position (BSEG) file ({0})".format(datetime.now()))
         
     print("Closing database...")
+    client.command("declare intent NULL")
     client.db_close()
     
     print("Done!")
