@@ -39,7 +39,8 @@ def main(*args):
     client.db_open(opts["arg.database"], opts["arg.user"], opts["arg.password"])
 
     print("Testing database...")
-    client.command("declare intent massiveinsert")
+    # client.command("declare intent massiveinsert")
+    client.command("select count(*) from VDocument")
     
     fix_identity = lambda x: x
     fix_date = lambda x: x[0:4] + "-" + x[4:6] + "-" + x[6:]
@@ -137,21 +138,16 @@ def main(*args):
 
                 if (count >= page_first and count % ratio_quot == ratio_mod):
                     raw = json.loads(line)
-                    record = { k : keep_pos[k](raw[k]) for k in raw.keys() if k in keep_pos.keys() }
-                    record["KEY"] = "{GJAHR}-{BELNR}-{BUZEI}".format(**raw)
-                    
-                    data = { "@VPosition" : record }
-                    
-                    pos_rid = client.record_create(-1, data)._rid
-                    doc_rid = getDocumentRid("{GJAHR}-{BELNR}".format(**raw))
-
-                    doCommand("create EDGE EParent from {0} to {1}".format(pos_rid, doc_rid))
-                    doCommand("create EDGE EChildren from {0} to {1}".format(doc_rid, pos_rid))
                     
                     if (raw["AUGGJ"] != "0000"):
+                        doc_rid = getDocumentRid("{GJAHR}-{BELNR}".format(**raw))
                         clear_rid = getDocumentRid("{AUGGJ}-{AUGBL}".format(**raw))
+
+                        record = { k : keep_pos[k](raw[k]) for k in raw.keys() if k in keep_pos.keys() }
+                        record["KEY"] = "{GJAHR}-{BELNR}-{BUZEI}".format(**raw)
                         
-                        doCommand("create EDGE EClearing from {0} to {1}".format(pos_rid, clear_rid))
+                        doCommand("create EDGE EClearing from {0} to {1} set {2}".format(
+                            doc_rid, clear_rid, ", ".join(["{0}='{1}'".format(k, record[k]) for k in record.keys()])))
                     
                     done += 1
                 
@@ -176,7 +172,7 @@ def main(*args):
         print("Finished processing position (BSEG) file ({0})".format(datetime.now()))
         
     print("Closing database...")
-    client.command("declare intent NULL")
+    # client.command("declare intent NULL")
     client.db_close()
     
     print("Done!")
